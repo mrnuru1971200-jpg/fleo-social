@@ -1,0 +1,6 @@
+{
+  "name": "fleo social",
+  "description": "A clean, minimal, and modern social media mobile app featuring authentication, user profiles, feed posts, likes, comments, shares, notifications, and settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

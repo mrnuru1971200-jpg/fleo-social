@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account details, bio, and visual branding.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique Firebase Auth ID." },
+        "email": { "type": "string", "format": "email" },
+        "username": { "type": "string", "description": "Lowercase custom identifier chosen by the user." },
+        "displayName": { "type": "string", "description": "Human readable name of the user." },
+        "bio": { "type": "string", "description": "Short description of the user." },
+        "photoURL": { "type": "string", "description": "URL of the user's profile icon." },
+        "coverURL": { "type": "string", "description": "URL of the user's cover banner." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "username", "displayName", "createdAt", "updatedAt"]
+    },
+    "Post": {
+      "title": "Feed Post",
+      "description": "A structured representation of user updates, texts, and embedded images or media.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhotoURL": { "type": "string" },
+        "authorUsername": { "type": "string" },
+        "content": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "linkUrl": { "type": "string" },
+        "likesCount": { "type": "integer" },
+        "commentsCount": { "type": "integer" },
+        "sharesCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "authorUsername", "content", "likesCount", "commentsCount", "sharesCount", "createdAt", "updatedAt"]
+    },
+    "Like": {
+      "title": "Post Like",
+      "description": "A direct correlation document confirming a user liked a specific post.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "createdAt"]
+    },
+    "Comment": {
+      "title": "Post Comment",
+      "description": "User opinions or reactions appended to a post feed.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhotoURL": { "type": "string" },
+        "authorUsername": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "authorUsername", "content", "createdAt"]
+    },
+    "Notification": {
+      "title": "Inbox Notification",
+      "description": "Alert signals indicating interactions like likes, comments on user posts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "share"] },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderPhotoURL": { "type": "string" },
+        "postId": { "type": "string" },
+        "postContent": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "senderId", "senderName", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "The master profiles map indexed by active Firebase uid."
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "The global feed containing all created updates."
+    },
+    "/posts/{postId}/likes/{userId}": {
+      "schema": "Like",
+      "description": "Document confirming a like action on a specific post. Helps trace double-likes."
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments attached to a specific post ID."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Individual notifications list for a specific profile."
+    }
+  }
+}

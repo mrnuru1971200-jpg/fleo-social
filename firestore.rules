@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- User Profile Validation ---
+    function isValidUser(userId, data) {
+      return data.uid == userId
+        && data.email is string
+        && data.username is string && data.username.size() >= 3 && data.username.size() <= 20
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 160))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && (!('coverURL' in data) || (data.coverURL is string && data.coverURL.size() <= 500));
+    }
+
+    // --- Post Validation ---
+    function isValidPost(data) {
+      return data.id is string
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 60
+        && data.authorUsername is string && data.authorUsername.size() <= 30
+        && data.content is string && data.content.size() <= 5000
+        && (!('mediaUrl' in data) || (data.mediaUrl is string && data.mediaUrl.size() <= 1000))
+        && (!('linkUrl' in data) || (data.linkUrl is string && data.linkUrl.size() <= 1000))
+        && data.likesCount is int && data.likesCount >= 0
+        && data.commentsCount is int && data.commentsCount >= 0
+        && data.sharesCount is int && data.sharesCount >= 0;
+    }
+
+    // --- Comment Validation ---
+    function isValidComment(data) {
+      return data.id is string
+        && data.postId is string
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 60
+        && data.authorUsername is string && data.authorUsername.size() <= 30
+        && data.content is string && data.content.size() <= 1000;
+    }
+
+    // --- Notification Validation ---
+    function isValidNotification(data) {
+      return data.id is string
+        && data.type is string && (data.type == 'like' || data.type == 'comment' || data.type == 'share')
+        && data.senderId is string && data.senderId.size() <= 128
+        && data.senderName is string && data.senderName.size() <= 60
+        && (!('senderPhotoURL' in data) || (data.senderPhotoURL is string && data.senderPhotoURL.size() <= 500))
+        && (!('postId' in data) || (data.postId is string))
+        && (!('postContent' in data) || (data.postContent is string && data.postContent.size() <= 200))
+        && data.read is bool;
+    }
+
+    // --- Matches Descriptions ---
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidId(userId) && isValidUser(userId, incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && userId == request.auth.uid && isValidUser(userId, incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isSignedIn() && userId == request.auth.uid;
+
+      // Users notifications nested subcollection
+      match /notifications/{notificationId} {
+        allow read: if isSignedIn() && userId == request.auth.uid;
+        allow list: if isSignedIn() && userId == request.auth.uid;
+        allow create: if isSignedIn() && isValidId(notificationId) && isValidNotification(incoming()) && incoming().createdAt == request.time;
+        allow update: if isSignedIn() && userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+        allow delete: if isSignedIn() && userId == request.auth.uid;
+      }
+    }
+
+    // 3. Posts Collection
+    match /posts/{postId} {
+      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(postId) && incoming().authorId == request.auth.uid && isValidPost(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidPost(incoming()) && (
+        // Action: Post Owner edits post contents
+        (existing().authorId == request.auth.uid && incoming().authorId == existing().authorId && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'mediaUrl', 'linkUrl', 'updatedAt']) && incoming().updatedAt == request.time) ||
+        // Action: Social interactions (Like, Comment counts incremented/decremented)
+        (incoming().authorId == existing().authorId && incoming().content == existing().content && incoming().mediaUrl == existing().mediaUrl && incoming().linkUrl == existing().linkUrl && incoming().createdAt == existing().createdAt && incoming().diff(existing()).affectedKeys().hasAny(['likesCount', 'commentsCount', 'sharesCount', 'updatedAt']) && incoming().updatedAt == request.time)
+      );
+      allow delete: if isSignedIn() && existing().authorId == request.auth.uid;
+
+      // Posts likes nested subcollection
+      match /likes/{userId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && userId == request.auth.uid && incoming().userId == userId && incoming().createdAt == request.time;
+        allow delete: if isSignedIn() && userId == request.auth.uid;
+      }
+
+      // Posts comments nested subcollection
+      match /comments/{commentId} {
+        allow read: if isSignedIn();
+        allow list: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(commentId) && incoming().authorId == request.auth.uid && isValidComment(incoming()) && incoming().createdAt == request.time;
+        allow delete: if isSignedIn() && existing().authorId == request.auth.uid;
+      }
+    }
+  }
+}
